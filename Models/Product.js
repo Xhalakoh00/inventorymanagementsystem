@@ -22,13 +22,18 @@ const  productSchema = mongose.Schema({
 
     quantity: {
         type: Number,
-        required: true,
+        required: true
     },
 
-    Timestamps: true // date created and date modfied at
+     color: {
+        type: String,
+        //required: true
+    },
 
 
 });
+
+Timestamps: true // date created and date modfied at
 
 //CREATE MODEL
 const product = mongose.model('product', productSchema);
