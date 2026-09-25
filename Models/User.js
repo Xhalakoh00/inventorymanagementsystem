@@ -1,52 +1,48 @@
-const mongose = require('mongoose');
-const bycrypt = require('bycrypt');
+const mongoose = require('mongoose');
 
-const userSchema = new mongose.Schema({
-    Name: {
-        type: String,
-        required: true,
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true
     },
-
-    Email: {
-        type: String,
-        required: true,
-        unique: true,
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true
     },
-
-    Password: {
-        type: String,
-        required: true,
-         unique: true,
+    password: {
+      type: String,
+      required: true
     },
-
-    Gender: {
-        type: String,
-        required: true,
+    gender: {
+      type: String
     },
-
-    hasAtmCard: {
-        type: Boolean,
-        default:false
+    phone: {
+      type: String,
+      required: true,
+      unique: true
     },
-
-    Phone: {
-        type: String,
-        required: true,
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user'
     },
+    HasAdminAccess: {
+      type: Boolean,
+      default: false
+    }
+  },
+  {
+    timestamps: true
+  }
+);
 
-    Role: {
-        type: String,
-        enum: {'admin': 'user'},
-        default: 'user'
-    },
+// Create model from schema
+const User = mongoose.model('User', userSchema);
 
-    Timestamps: true // date created and date modfied
+module.exports = User;
 
-    
-
-
-
-});
-
-//CREATE MODEL
-const User = mongose.model('user', userSchema);
