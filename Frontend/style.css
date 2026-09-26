@@ -1,0 +1,22 @@
+/* Clean Subtle Scrollbar */
+#cart-items::-webkit-scrollbar {
+  width: 4px;
+}
+
+#cart-items::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+#cart-items::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+#cart-items::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Smooth Inputs & Buttons */
+button, input, select {
+  transition: all 0.15s ease-in-out;
+}

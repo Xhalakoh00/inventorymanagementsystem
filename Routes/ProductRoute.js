@@ -1,23 +1,13 @@
 const express = require('express');
 const router = express.Router();
+const productController = require('../controller/ProductController');
+const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
 
-// Import the product controller
-const productController = require('../Controller/ProductController');
+// Anyone logged in can view products
+router.get('/all', verifyToken, productController.getAllProducts);
 
-// Define the routes
-router.post('/createproduct', productController.createProduct);
-router.put('/updateproduct/:id', productController.updateProduct);
+// ONLY Admins can create or delete products
+router.post('/create', verifyToken, isAdmin, productController.createProduct);
+router.delete('/:id', verifyToken, isAdmin, productController.deleteProduct);
 
-// Additional standard CRUD routes (if defined in your ProductController)
-if (productController.getAllProducts) {
-  router.get('/allproducts', productController.getAllProducts);
-}
-if (productController.getProductById) {
-  router.get('/:id', productController.getProductById);
-}
-if (productController.deleteProduct) {
-  router.delete('/deleteproduct/:id', productController.deleteProduct);
-}
-
-// Export the router to be used in other files
 module.exports = router;

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boku Supermarket — POS & Inventory</title>
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛒</text></svg>" />
+
+  <!-- Fonts: Instrument Serif & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="style.css" />
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .font-serif-display {
+      font-family: 'Instrument Serif', Georgia, serif;
+    }
+  </style>
+</head>
+<body class="bg-white text-slate-800 antialiased min-h-screen">
+
+  <!-- ================= AUTH SCREEN ================= -->
+  <div id="auth-screen" class="min-h-screen grid grid-cols-1 lg:grid-cols-12 bg-white">
+    
+    <!-- LEFT SIDE: Deep Forest Minimalist Panel -->
+    <div class="lg:col-span-7 bg-[#081f1c] relative flex flex-col justify-between p-8 sm:p-14 lg:p-20 text-white min-h-[460px] lg:min-h-screen overflow-hidden">
+      
+      <!-- Subtle soft ambient spotlight -->
+      <div class="absolute top-1/3 left-1/4 w-[500px] h-[500px] bg-emerald-700/15 rounded-full blur-[140px] pointer-events-none"></div>
+
+      <!-- Top Branding: Pure Typography -->
+      <div class="relative z-10">
+        <span class="text-xs font-bold tracking-[0.28em] text-white/90 uppercase">
+          BOKU SUPERMARKET
+        </span>
+      </div>
+
+      <!-- Center Editorial Headline -->
+      <div class="relative z-10 my-auto py-10 max-w-xl">
+        <h1 class="text-5xl sm:text-6xl lg:text-7xl font-serif-display font-normal leading-[1.08] tracking-tight text-white/95">
+          Make every sale <br />
+          <span class="italic font-light text-emerald-100/90">feel simple.</span>
+        </h1>
+        <p class="mt-6 text-sm sm:text-base text-emerald-100/70 font-light leading-relaxed max-w-md">
+          A focused point-of-sale workspace for the people managing stock and the people serving customers.
+        </p>
+      </div>
+
+      <!-- Bottom Location Tag -->
+      <div class="relative z-10 text-xs text-emerald-100/40 font-light tracking-wide">
+        12 Commercial Avenue, Abeokuta
+      </div>
+    </div>
+
+    <!-- RIGHT SIDE: Clean Access Workspace -->
+    <div class="lg:col-span-5 flex flex-col justify-center px-8 sm:px-12 lg:px-16 py-12 bg-white">
+      <div class="w-full max-w-sm mx-auto">
+        
+        <!-- Header -->
+        <div class="mb-8">
+          <span class="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">WORKSPACE ACCESS</span>
+          <h2 class="text-4xl font-serif-display font-normal text-slate-900 mt-2">Welcome back.</h2>
+          <p class="text-xs text-slate-500 mt-1.5 font-light">Sign in to continue to your POS workspace.</p>
+        </div>
+
+        <!-- Mode Switch Tabs -->
+        <div class="flex border-b border-slate-200 mb-6 text-xs">
+          <button id="tab-login" class="flex-1 pb-3 font-semibold border-b-2 border-[#0a3832] text-[#0a3832] transition">Sign In</button>
+          <button id="tab-register" class="flex-1 pb-3 font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600 transition">Register Staff</button>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <form id="login-form" class="space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1.5">Work email</label>
+            <input type="email" id="login-email" required class="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-[#0a3832] focus:ring-1 focus:ring-[#0a3832] transition" placeholder="Enter your email" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
+            <input type="password" id="login-password" required class="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-[#0a3832] focus:ring-1 focus:ring-[#0a3832] transition" placeholder="••••••••" />
+          </div>
+
+          <button type="submit" class="w-full py-3 bg-[#0a3832] hover:bg-[#072924] text-white font-medium text-sm rounded-lg shadow-sm transition duration-150 mt-2">
+            Enter workspace
+          </button>
+        </form>
+
+        <!-- REGISTER FORM -->
+        <form id="register-form" class="space-y-3 hidden">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Full Name</label>
+            <input type="text" id="reg-name" required class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:border-[#0a3832]" placeholder="e.g. Jane Doe" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Work Email</label>
+            <input type="email" id="reg-email" required class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:border-[#0a3832]" placeholder="jane@example.com" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Phone</label>
+            <input type="text" id="reg-phone" required class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:border-[#0a3832]" placeholder="08012345678" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Password</label>
+            <input type="password" id="reg-password" required class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:border-[#0a3832]" placeholder="••••••••" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Role</label>
+              <select id="reg-role" class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:border-[#0a3832]">
+                <option value="user">Cashier</option>
+                <option value="admin">Store Admin</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Gender</label>
+              <select id="reg-gender" class="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:border-[#0a3832]">
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="w-full py-2.5 bg-[#0a3832] hover:bg-[#072924] text-white font-medium text-xs rounded-lg shadow-sm transition mt-2">
+            Create Staff Profile
+          </button>
+        </form>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DASHBOARD SCREEN ================= -->
+  <div id="dashboard-screen" class="hidden min-h-screen flex flex-col bg-slate-50">
+    <!-- Navbar -->
+    <header class="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
+      <div>
+        <h1 class="text-sm font-bold tracking-wider text-slate-900 uppercase">Boku Supermarket</h1>
+        <p class="text-[11px] text-slate-400 font-light">📍 Abeokuta, Ogun State • POS & Inventory</p>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center gap-2">
+        <button id="btn-tab-pos" class="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-50 text-[#0a3832] flex items-center gap-2 transition">
+          <i data-lucide="layout-grid" class="w-4 h-4"></i> POS Register
+        </button>
+        <button id="btn-tab-inventory" class="px-4 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:bg-slate-100 flex items-center gap-2 transition">
+          <i data-lucide="boxes" class="w-4 h-4"></i> Stock Inventory
+        </button>
+      </nav>
+
+      <!-- User Profile & Logout -->
+      <div class="flex items-center gap-4">
+        <div class="text-right">
+          <p id="user-display-name" class="text-xs font-bold text-slate-800">Cashier</p>
+          <span id="user-display-role" class="text-[10px] uppercase tracking-wider px-2 py-0.5 bg-slate-100 text-slate-600 font-bold rounded">Staff</span>
+        </div>
+        <button id="btn-logout" title="Log out" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 p-6 max-w-7xl w-full mx-auto">
+      
+      <!-- POS Register View -->
+      <div id="view-pos" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">Product Catalog</h2>
+              <p class="text-xs text-slate-400 font-light">Click items to add to current order</p>
+            </div>
+            <input type="text" id="pos-search" placeholder="Search catalog..." class="px-3.5 py-2 border rounded-lg bg-white text-xs outline-none focus:border-[#0a3832] focus:ring-1 focus:ring-[#0a3832] w-64 shadow-xs" />
+          </div>
+          <div id="pos-products-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-4"></div>
+        </div>
+
+        <!-- POS Cart / Ticket -->
+        <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs flex flex-col h-[calc(100vh-140px)] sticky top-20">
+          <div class="flex items-center justify-between border-b pb-3 mb-3">
+            <div>
+              <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="receipt" class="w-4 h-4 text-[#0a3832]"></i> Active Ticket
+              </h3>
+              <p class="text-[10px] text-slate-400">Boku Supermarket — Checkout</p>
+            </div>
+            <button id="btn-clear-cart" class="text-xs text-red-500 hover:underline font-semibold">Clear</button>
+          </div>
+
+          <div id="cart-items" class="flex-1 overflow-y-auto space-y-3 pr-1"></div>
+
+          <div class="border-t pt-4 mt-auto space-y-2">
+            <div class="flex justify-between text-xs text-slate-500">
+              <span>Subtotal</span>
+              <span id="cart-subtotal" class="font-semibold text-slate-700">₦0.00</span>
+            </div>
+            <div class="flex justify-between text-sm font-bold text-slate-900 border-t pt-2">
+              <span>Total Amount</span>
+              <span id="cart-total" class="text-[#0a3832] font-bold text-base">₦0.00</span>
+            </div>
+            <button id="btn-checkout" class="w-full py-2.5 bg-[#0a3832] hover:bg-[#072924] text-white font-medium text-xs rounded-lg shadow-sm transition flex items-center justify-center gap-2 mt-2">
+              <i data-lucide="check-circle" class="w-4 h-4"></i> Complete Sale
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inventory View -->
+      <div id="view-inventory" class="hidden space-y-6">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Stock Inventory</h2>
+            <p class="text-xs text-slate-400 font-light">Monitor live items, track quantities and store supplies</p>
+          </div>
+          <button id="btn-open-modal" class="px-4 py-2 bg-[#0a3832] hover:bg-[#072924] text-white text-xs font-semibold rounded-lg flex items-center gap-2 shadow-xs transition">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add New Product
+          </button>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+          <table class="w-full text-left text-xs text-slate-600">
+            <thead class="bg-slate-50 text-slate-700 font-bold border-b text-[11px] uppercase tracking-wider">
+              <tr>
+                <th class="p-4">Item Name</th>
+                <th class="p-4">Category</th>
+                <th class="p-4">Unit Price</th>
+                <th class="p-4">Stock Level</th>
+                <th class="p-4 text-center">Status</th>
+                <th class="p-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="inventory-table-body" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Product Modal -->
+  <div id="product-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl border border-slate-100">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Add Inventory Product</h3>
+          <p class="text-xs text-slate-400">Enter new item specs for Boku Supermarket</p>
+        </div>
+        <button id="btn-close-modal" class="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <form id="create-product-form" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Product Name</label>
+          <input type="text" id="prod-name" required class="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-[#0a3832] focus:ring-1 focus:ring-[#0a3832]" placeholder="e.g. Peak Milk 400g" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Price (₦)</label>
+            <input type="number" id="prod-price" required min="1" class="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-[#0a3832] focus:ring-1 focus:ring-[#0a3832]" placeholder="1500" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Stock Quantity</label>
+            <input type="number" id="prod-stock" required min="0" class="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-[#0a3832] focus:ring-1 focus:ring-[#0a3832]" placeholder="50" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Category</label>
+          <input type="text" id="prod-category" required class="w-full px-3 py-2 border rounded-lg text-xs outline-none focus:border-[#0a3832] focus:ring-1 focus:ring-[#0a3832]" placeholder="Dairy, Bakery, Drinks..." />
+        </div>
+        <button type="submit" class="w-full py-2.5 bg-[#0a3832] hover:bg-[#072924] text-white font-medium text-xs rounded-lg shadow-xs transition mt-2">
+          Save Product
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- External Script -->
+  <script src="script.js"></script>
+</body>
+</html>
