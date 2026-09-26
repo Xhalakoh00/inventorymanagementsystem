@@ -9,4 +9,3 @@ router.post('/loginuser', userController.loginUser);
 
 // Export the router to be used in other files
 module.exports = router;
-
