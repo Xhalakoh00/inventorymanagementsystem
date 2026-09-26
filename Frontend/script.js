@@ -1,447 +1,442 @@
-const API_BASE = "http://localhost:5000";
+/**
+ * Boku Supermarket POS & Inventory Management System
+ * Production Frontend Controller
+ */
 
-// Fallback catalog: ensures Netlify never displays a blank screen when backend is offline
-const DEFAULT_PRODUCTS = [
-  { _id: '1', name: 'Golden Penny Sugar 500g', price: 1200, stock: 24, category: 'Groceries' },
-  { _id: '2', name: 'Peak Milk Tin', price: 900, stock: 8, category: 'Dairy' },
-  { _id: '3', name: 'Indomie Super Pack', price: 450, stock: 50, category: 'Food' },
-  { _id: '4', name: 'Eva Water 75cl', price: 250, stock: 4, category: 'Drinks' },
-];
+// Live Render backend URL (no /api prefix)
+const API_BASE_URL = "https://boku-pos-api.onrender.com";
 
-// App State
-let currentUser = JSON.parse(localStorage.getItem('user')) || null;
-let token = localStorage.getItem('token') || null;
-let products = [...DEFAULT_PRODUCTS];
-let cart = [];
+// Application State
+const state = {
+  token: localStorage.getItem("boku_token") || null,
+  user: JSON.parse(localStorage.getItem("boku_user")) || null,
+  products: [],
+  cart: [],
+  activeCategory: "all",
+  searchQuery: "",
+};
 
-// DOM References
-const authScreen = document.getElementById('auth-screen');
-const dashboardScreen = document.getElementById('dashboard-screen');
-const loginForm = document.getElementById('login-form');
-const registerForm = document.getElementById('register-form');
-const tabLogin = document.getElementById('tab-login');
-const tabRegister = document.getElementById('tab-register');
-const btnTabPos = document.getElementById('btn-tab-pos');
-const btnTabInventory = document.getElementById('btn-tab-inventory');
-const viewPos = document.getElementById('view-pos');
-const viewInventory = document.getElementById('view-inventory');
-const productModal = document.getElementById('product-modal');
-
-// Application Lifecycle
-window.addEventListener('DOMContentLoaded', () => {
-  setupEventListeners();
-  if (token && currentUser) {
-    showDashboard();
-  } else {
-    showAuth();
-  }
-  lucide.createIcons();
-});
-
-function setupEventListeners() {
-  tabLogin.addEventListener('click', () => switchAuthTab('login'));
-  tabRegister.addEventListener('click', () => switchAuthTab('register'));
-  btnTabPos.addEventListener('click', () => switchView('pos'));
-  btnTabInventory.addEventListener('click', () => switchView('inventory'));
-  document.getElementById('btn-logout').addEventListener('click', handleLogout);
-  document.getElementById('btn-clear-cart').addEventListener('click', clearCart);
-  document.getElementById('btn-checkout').addEventListener('click', checkoutOrder);
-  document.getElementById('btn-open-modal').addEventListener('click', openProductModal);
-  document.getElementById('btn-close-modal').addEventListener('click', closeProductModal);
-  document.getElementById('pos-search').addEventListener('input', (e) => filterPOSProducts(e.target.value));
-
-  loginForm.addEventListener('submit', handleLogin);
-  registerForm.addEventListener('submit', handleRegister);
-  document.getElementById('create-product-form').addEventListener('submit', handleCreateProduct);
-}
-
-// Auth Tabs Switcher
-function switchAuthTab(type) {
-  const isLogin = type === 'login';
-  loginForm.classList.toggle('hidden', !isLogin);
-  registerForm.classList.toggle('hidden', isLogin);
-  tabLogin.className = isLogin 
-    ? "flex-1 pb-3 font-semibold border-b-2 border-[#0a3832] text-[#0a3832] transition" 
-    : "flex-1 pb-3 font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600 transition";
-  tabRegister.className = !isLogin 
-    ? "flex-1 pb-3 font-semibold border-b-2 border-[#0a3832] text-[#0a3832] transition" 
-    : "flex-1 pb-3 font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600 transition";
-}
-
-// Navigation Tabs Switcher
-function switchView(view) {
-  if (view === 'pos') {
-    viewPos.classList.remove('hidden');
-    viewInventory.classList.add('hidden');
-    btnTabPos.className = "px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-50 text-[#0a3832] flex items-center gap-2 transition";
-    btnTabInventory.className = "px-4 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:bg-slate-100 flex items-center gap-2 transition";
-  } else {
-    viewPos.classList.add('hidden');
-    viewInventory.classList.remove('hidden');
-    btnTabInventory.className = "px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-50 text-[#0a3832] flex items-center gap-2 transition";
-    btnTabPos.className = "px-4 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:bg-slate-100 flex items-center gap-2 transition";
-    renderInventoryTable();
-  }
-  lucide.createIcons();
-}
-
-// Authentication API Handlers
-async function handleLogin(e) {
-  e.preventDefault();
-  const email = document.getElementById('login-email').value;
-  const password = document.getElementById('login-password').value;
-
-  try {
-    const res = await fetch(`${API_BASE}/users/loginuser`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Login failed');
-
-    token = data.token;
-    currentUser = data.user;
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(currentUser));
-    showDashboard();
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-async function handleRegister(e) {
-  e.preventDefault();
-  const payload = {
-    name: document.getElementById('reg-name').value,
-    email: document.getElementById('reg-email').value,
-    phone: document.getElementById('reg-phone').value,
-    password: document.getElementById('reg-password').value,
-    role: document.getElementById('reg-role').value,
-    gender: document.getElementById('reg-gender').value,
-    HasAdminAccess: document.getElementById('reg-role').value === 'admin'
+// -------------------------------------------------------------
+// Authenticated API Request Wrapper
+// -------------------------------------------------------------
+async function apiRequest(endpoint, options = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    ...(state.token ? { Authorization: "Bearer " + state.token } : {}),
+    ...options.headers,
   };
 
   try {
-    const res = await fetch(`${API_BASE}/users/createuser`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    const response = await fetch(API_BASE_URL + endpoint, {
+      ...options,
+      headers,
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Registration failed');
 
-    alert("Staff account created successfully! Please sign in.");
-    switchAuthTab('login');
+    const data = await response.json();
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        handleLogout();
+        throw new Error("Session expired. Please log in again.");
+      }
+      throw new Error(data.message || "An error occurred with the request.");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("API Error [" + endpoint + "]:", error.message);
+    throw error;
+  }
+}
+
+// -------------------------------------------------------------
+// Authentication (Login & Register)
+// -------------------------------------------------------------
+async function handleLogin(email, password) {
+  try {
+    const data = await apiRequest("/users/login", {
+      method: "POST",
+      body: JSON.stringify({ email: email, password: password }),
+    });
+
+    state.token = data.token;
+    state.user = data.user || { email: email };
+    localStorage.setItem("boku_token", state.token);
+    localStorage.setItem("boku_user", JSON.stringify(state.user));
+
+    updateAuthUI();
+    loadProducts();
+    alert("Login successful!");
+    return true;
   } catch (err) {
-    alert(err.message);
+    alert("Login failed: " + err.message);
+    return false;
+  }
+}
+
+async function handleRegister(name, email, password, role = "cashier") {
+  try {
+    const data = await apiRequest("/users/register", {
+      method: "POST",
+      body: JSON.stringify({ name: name, email: email, password: password, role: role }),
+    });
+
+    alert("Registration successful! You can now log in.");
+    return true;
+  } catch (err) {
+    alert("Registration failed: " + err.message);
+    return false;
   }
 }
 
 function handleLogout() {
-  localStorage.clear();
-  token = null;
-  currentUser = null;
-  cart = [];
-  products = [...DEFAULT_PRODUCTS];
-  showAuth();
+  state.token = null;
+  state.user = null;
+  state.cart = [];
+  localStorage.removeItem("boku_token");
+  localStorage.removeItem("boku_user");
+  updateAuthUI();
 }
 
-// Products API Handlers
-async function fetchProductsFromDB() {
-  try {
-    const res = await fetch(`${API_BASE}/products/all`, {
-      headers: { 
-        'Authorization': `Bearer ${token}` 
-      }
-    });
-    
-    if (!res.ok) throw new Error("Could not reach backend");
-    
-    const data = await res.json();
-    const fetchedItems = data.products || data;
-    
-    if (Array.isArray(fetchedItems) && fetchedItems.length > 0) {
-      products = fetchedItems;
-      renderPOSProducts(products);
-      renderInventoryTable();
+function updateAuthUI() {
+  const authSection = document.getElementById("auth-modal");
+  const userDisplay = document.getElementById("logged-in-user");
+
+  if (state.token) {
+    if (authSection) authSection.classList.add("hidden");
+    if (userDisplay) {
+      userDisplay.textContent = state.user?.name || state.user?.email || "Cashier";
     }
-  } catch (err) {
-    console.warn("Using local catalog:", err.message);
-    if (products.length === 0) {
-      products = [...DEFAULT_PRODUCTS];
+  } else {
+    if (authSection) authSection.classList.remove("hidden");
+    if (userDisplay) {
+      userDisplay.textContent = "Not logged in";
     }
-    renderPOSProducts(products);
-    renderInventoryTable();
   }
 }
 
-async function handleCreateProduct(e) {
-  e.preventDefault();
-  const payload = {
-    name: document.getElementById('prod-name').value,
-    price: Number(document.getElementById('prod-price').value),
-    stock: Number(document.getElementById('prod-stock').value),
-    category: document.getElementById('prod-category').value
-  };
-
+// -------------------------------------------------------------
+// Catalog & Inventory
+// -------------------------------------------------------------
+async function loadProducts() {
+  const productsContainer = document.getElementById("product-grid");
   try {
-    const res = await fetch(`${API_BASE}/products/create`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Could not save product');
-
-    alert("Product saved to database!");
-    closeProductModal();
-    e.target.reset();
-    fetchProductsFromDB();
-  } catch (err) {
-    const fallbackProd = { ...payload, _id: Date.now().toString() };
-    products.unshift(fallbackProd);
-    renderPOSProducts(products);
-    renderInventoryTable();
-    closeProductModal();
-    e.target.reset();
-    alert("Saved locally (offline mode)!");
-  }
-}
-
-window.deleteProduct = async function(productId) {
-  const prod = products.find(p => p._id === productId);
-  if (!prod) return;
-
-  if (confirm(`Are you sure you want to remove "${prod.name}" from inventory?`)) {
-    try {
-      const res = await fetch(`${API_BASE}/products/${productId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Delete failed');
-
-      alert("Item deleted successfully!");
-    } catch (err) {
-      console.warn("Deleted locally:", err.message);
+    if (productsContainer) {
+      productsContainer.innerHTML = '<div class="p-6 text-gray-500">Loading catalog from cloud...</div>';
     }
 
-    products = products.filter(p => p._id !== productId);
-    cart = cart.filter(c => c._id !== productId);
-    renderInventoryTable();
-    renderPOSProducts(products);
-    renderCart();
-  }
-};
-
-// Sales & Order Checkout Handler
-async function checkoutOrder() {
-  if (cart.length === 0) return alert("Cart is empty!");
-
-  const totalAmount = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-
-  const payload = {
-    items: cart,
-    totalAmount: totalAmount,
-    paymentMethod: 'Cash'
-  };
-
-  try {
-    const res = await fetch(`${API_BASE}/sales/create`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Checkout failed');
-
-    const receiptId = data.sale?._id ? data.sale._id.slice(-6).toUpperCase() : 'OK';
-    alert(`Receipt #${receiptId} — Sale completed successfully!`);
-
-    clearCart();
-    await fetchProductsFromDB();
+    const data = await apiRequest("/products");
+    state.products = Array.isArray(data) ? data : (data.products || []);
+    renderProductCatalog();
   } catch (err) {
-    console.warn("Server checkout error:", err.message);
-    cart.forEach(cartItem => {
-      const prod = products.find(p => p._id === cartItem._id);
-      if (prod) prod.stock = Math.max(0, prod.stock - cartItem.qty);
-    });
-
-    alert("Sale registered (Local mode).");
-    clearCart();
-    renderPOSProducts(products);
-    renderInventoryTable();
+    if (productsContainer) {
+      productsContainer.innerHTML =
+        '<div class="p-6 text-red-500 bg-red-50 rounded border border-red-200">' +
+        'Failed to load catalog. Please check network connection and refresh.' +
+        '</div>';
+    }
   }
 }
 
-// Screen Renders
-function showDashboard() {
-  authScreen.classList.add('hidden');
-  dashboardScreen.classList.remove('hidden');
-  document.getElementById('user-display-name').textContent = currentUser?.name || 'Staff';
-  document.getElementById('user-display-role').textContent = currentUser?.role || 'user';
-  
-  renderPOSProducts(products);
-  renderInventoryTable();
-  fetchProductsFromDB();
-}
+function renderProductCatalog() {
+  const container = document.getElementById("product-grid");
+  if (!container) return;
 
-function showAuth() {
-  authScreen.classList.remove('hidden');
-  dashboardScreen.classList.add('hidden');
-}
+  const filtered = state.products.filter((product) => {
+    const nameMatch = (product.name || "").toLowerCase().includes(state.searchQuery.toLowerCase());
+    const barcodeMatch = (product.barcode || "").includes(state.searchQuery);
+    const matchesSearch = nameMatch || barcodeMatch;
+    const matchesCat = state.activeCategory === "all" || product.category === state.activeCategory;
+    return matchesSearch && matchesCat;
+  });
 
-function renderPOSProducts(items) {
-  const container = document.getElementById('pos-products-grid');
-  if (!items || items.length === 0) {
-    container.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400 text-xs">No products in inventory. Add some from the Stock tab.</div>`;
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="col-span-full py-12 text-center text-gray-400">No products found.</div>';
     return;
   }
 
-  container.innerHTML = items.map(p => `
-    <div onclick="addToCart('${p._id}')" class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs hover:border-emerald-600 hover:shadow-sm cursor-pointer transition flex flex-col justify-between">
-      <div>
-        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${p.category || 'General'}</span>
-        <h4 class="font-bold text-slate-800 text-sm mt-1 line-clamp-1">${p.name}</h4>
-      </div>
-      <div class="mt-4 flex items-center justify-between">
-        <span class="font-bold text-emerald-700">₦${p.price.toLocaleString()}</span>
-        <span class="text-[11px] px-2 py-0.5 rounded ${p.stock > 10 ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-700 font-semibold'}">${p.stock} in stock</span>
-      </div>
-    </div>
-  `).join('');
+  container.innerHTML = filtered.map((prod) => {
+    const isOutOfStock = prod.quantity <= 0;
+    const categoryLabel = prod.category || "General";
+    const stockLabel = prod.quantity < 5
+      ? '<span class="text-xs text-amber-600 font-bold">Stock: ' + prod.quantity + '</span>'
+      : '<span class="text-xs text-gray-400">Stock: ' + prod.quantity + '</span>';
+
+    return (
+      '<div onclick="' + (isOutOfStock ? '' : "addToCart('" + prod._id + "')") + '" ' +
+      'class="p-4 bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer flex flex-col justify-between ' +
+      (isOutOfStock ? 'opacity-50 cursor-not-allowed' : '') + '">' +
+        '<div>' +
+          '<div class="flex justify-between items-start mb-2">' +
+            '<span class="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">' + categoryLabel + '</span>' +
+            stockLabel +
+          '</div>' +
+          '<h4 class="font-semibold text-gray-800 text-sm mb-1 leading-snug">' + prod.name + '</h4>' +
+        '</div>' +
+        '<div class="mt-4 flex items-center justify-between">' +
+          '<span class="text-emerald-700 font-bold">₦' + Number(prod.price).toLocaleString() + '</span>' +
+          '<button class="px-2 py-1 bg-emerald-600 text-white rounded text-xs hover:bg-emerald-700 transition" ' +
+          (isOutOfStock ? 'disabled' : '') + '>' +
+            (isOutOfStock ? 'Out of Stock' : 'Add') +
+          '</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }).join("");
 }
 
-function filterPOSProducts(search) {
-  const filtered = products.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) || 
-    (p.category && p.category.toLowerCase().includes(search.toLowerCase()))
-  );
-  renderPOSProducts(filtered);
-}
+// -------------------------------------------------------------
+// Cart Operations
+// -------------------------------------------------------------
+function addToCart(productId) {
+  const product = state.products.find((p) => p._id === productId);
+  if (!product) return;
 
-// Cart System
-window.addToCart = function(productId) {
-  const prod = products.find(p => p._id === productId);
-  if (!prod || prod.stock <= 0) return alert("Item out of stock!");
+  const existing = state.cart.find((item) => item._id === productId);
 
-  const existing = cart.find(item => item._id === productId);
   if (existing) {
-    if (existing.qty < prod.stock) {
-      existing.qty += 1;
-    } else {
-      alert("Maximum stock reached!");
+    if (existing.quantity + 1 > product.quantity) {
+      alert("Only " + product.quantity + " units available in stock.");
+      return;
     }
+    existing.quantity += 1;
   } else {
-    cart.push({ ...prod, qty: 1 });
+    if (product.quantity < 1) {
+      alert("Item is out of stock.");
+      return;
+    }
+    state.cart.push({
+      _id: product._id,
+      name: product.name,
+      price: Number(product.price),
+      quantity: 1,
+      maxStock: product.quantity,
+    });
   }
-  renderCart();
-};
 
-window.updateCartQty = function(productId, delta) {
-  const item = cart.find(i => i._id === productId);
-  const prod = products.find(p => p._id === productId);
+  renderCart();
+}
+
+function updateCartQuantity(productId, delta) {
+  const item = state.cart.find((i) => i._id === productId);
   if (!item) return;
 
-  item.qty += delta;
-  if (item.qty <= 0) {
-    cart = cart.filter(i => i._id !== productId);
-  } else if (item.qty > prod.stock) {
-    item.qty = prod.stock;
-    alert("Stock limit reached!");
+  const newQty = item.quantity + delta;
+
+  if (newQty <= 0) {
+    state.cart = state.cart.filter((i) => i._id !== productId);
+  } else if (newQty > item.maxStock) {
+    alert("Cannot exceed available inventory (" + item.maxStock + ").");
+    return;
+  } else {
+    item.quantity = newQty;
   }
+
   renderCart();
-};
+}
+
+function removeFromCart(productId) {
+  state.cart = state.cart.filter((i) => i._id !== productId);
+  renderCart();
+}
 
 function clearCart() {
-  cart = [];
+  state.cart = [];
   renderCart();
+}
+
+function calculateCartTotals() {
+  const subtotal = state.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const tax = 0;
+  const total = subtotal + tax;
+  return { subtotal, tax, total };
 }
 
 function renderCart() {
-  const container = document.getElementById('cart-items');
-  if (cart.length === 0) {
-    container.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs">Cart is empty</div>`;
-    document.getElementById('cart-subtotal').textContent = '₦0.00';
-    document.getElementById('cart-total').textContent = '₦0.00';
+  const container = document.getElementById("cart-items");
+  const subtotalEl = document.getElementById("cart-subtotal");
+  const totalEl = document.getElementById("cart-total");
+  const payBtn = document.getElementById("checkout-btn");
+
+  if (!container) return;
+
+  if (state.cart.length === 0) {
+    container.innerHTML =
+      '<div class="h-64 flex flex-col items-center justify-center text-gray-400">' +
+      '<p class="text-sm">Scan barcode or select an item</p>' +
+      '</div>';
+    if (subtotalEl) subtotalEl.textContent = "₦0";
+    if (totalEl) totalEl.textContent = "₦0";
+    if (payBtn) payBtn.disabled = true;
     return;
   }
 
-  let total = 0;
-  container.innerHTML = cart.map(item => {
-    const itemTotal = item.price * item.qty;
-    total += itemTotal;
-    return `
-      <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-        <div class="flex-1 pr-2">
-          <h5 class="text-xs font-semibold text-slate-800 line-clamp-1">${item.name}</h5>
-          <span class="text-[11px] text-slate-400">₦${item.price.toLocaleString()}</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <button onclick="updateCartQty('${item._id}', -1)" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-xs">-</button>
-          <span class="text-xs font-bold w-4 text-center">${item.qty}</span>
-          <button onclick="updateCartQty('${item._id}', 1)" class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-bold text-slate-600 text-xs">+</button>
-        </div>
-      </div>
-    `;
-  }).join('');
+  container.innerHTML = state.cart.map((item) => {
+    const lineTotal = item.price * item.quantity;
+    return (
+      '<div class="flex items-center justify-between p-3 mb-2 bg-gray-50 rounded-lg border border-gray-100 text-sm">' +
+        '<div class="flex-1 pr-2">' +
+          '<p class="font-medium text-gray-800 leading-tight">' + item.name + '</p>' +
+          '<span class="text-xs text-gray-500">₦' + item.price.toLocaleString() + ' × ' + item.quantity + '</span>' +
+        '</div>' +
+        '<div class="flex items-center space-x-2">' +
+          '<button onclick="updateCartQuantity(\'' + item._id + '\', -1)" class="w-6 h-6 rounded bg-gray-200 text-gray-700 flex items-center justify-center font-bold hover:bg-gray-300">-</button>' +
+          '<span class="font-semibold text-gray-800 w-5 text-center">' + item.quantity + '</span>' +
+          '<button onclick="updateCartQuantity(\'' + item._id + '\', 1)" class="w-6 h-6 rounded bg-gray-200 text-gray-700 flex items-center justify-center font-bold hover:bg-gray-300">+</button>' +
+          '<button onclick="removeFromCart(\'' + item._id + '\')" class="text-red-500 hover:text-red-700 ml-2">×</button>' +
+        '</div>' +
+        '<div class="w-20 text-right font-bold text-gray-800">' +
+          '₦' + lineTotal.toLocaleString() +
+        '</div>' +
+      '</div>'
+    );
+  }).join("");
 
-  document.getElementById('cart-subtotal').textContent = `₦${total.toLocaleString()}`;
-  document.getElementById('cart-total').textContent = `₦${total.toLocaleString()}`;
-  lucide.createIcons();
+  const { subtotal, total } = calculateCartTotals();
+  if (subtotalEl) subtotalEl.textContent = "₦" + subtotal.toLocaleString();
+  if (totalEl) totalEl.textContent = "₦" + total.toLocaleString();
+  if (payBtn) payBtn.disabled = false;
 }
 
-// Inventory Logic
-function renderInventoryTable() {
-  const tbody = document.getElementById('inventory-table-body');
-  if (!products || products.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400 text-xs">No inventory items found. Click "+ Add New Product" to add.</td></tr>`;
+// -------------------------------------------------------------
+// Checkout & Receipts
+// -------------------------------------------------------------
+async function processSale(paymentMethod = "Cash") {
+  if (state.cart.length === 0) {
+    alert("Cannot process an empty sale.");
     return;
   }
 
-  tbody.innerHTML = products.map(p => {
-    let statusBadge = p.stock > 10 
-      ? `<span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">In Stock</span>`
-      : p.stock > 0 
-      ? `<span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">Low Stock</span>`
-      : `<span class="px-2.5 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">Out of Stock</span>`;
+  const { subtotal, tax, total } = calculateCartTotals();
 
-    return `
-      <tr class="hover:bg-slate-50 transition">
-        <td class="p-4 font-semibold text-slate-900">${p.name}</td>
-        <td class="p-4 text-slate-600">${p.category || 'General'}</td>
-        <td class="p-4 font-bold text-slate-800">₦${p.price.toLocaleString()}</td>
-        <td class="p-4 font-medium text-slate-600">${p.stock} units</td>
-        <td class="p-4 text-center">${statusBadge}</td>
-        <td class="p-4 text-right">
-          <button onclick="deleteProduct('${p._id}')" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete Item">
-            <i data-lucide="trash-2" class="w-4 h-4"></i>
-          </button>
-        </td>
-      </tr>
-    `;
-  }).join('');
+  const payload = {
+    items: state.cart.map((item) => ({
+      product: item._id,
+      quantity: item.quantity,
+      price: item.price,
+    })),
+    subtotal: subtotal,
+    tax: tax,
+    totalAmount: total,
+    paymentMethod: paymentMethod,
+    cashier: state.user?.id || undefined,
+  };
 
-  lucide.createIcons();
+  const payBtn = document.getElementById("checkout-btn");
+  if (payBtn) {
+    payBtn.disabled = true;
+    payBtn.textContent = "Processing...";
+  }
+
+  try {
+    const saleResult = await apiRequest("/sales", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    displayReceipt(saleResult);
+    clearCart();
+    loadProducts();
+  } catch (err) {
+    alert("Transaction Failed: " + err.message);
+  } finally {
+    if (payBtn) {
+      payBtn.disabled = false;
+      payBtn.textContent = "Charge Sale";
+    }
+  }
 }
 
-function openProductModal() {
-  productModal.classList.remove('hidden');
-  productModal.classList.add('flex');
+function displayReceipt(sale) {
+  const receiptModal = document.getElementById("receipt-modal");
+  const receiptContent = document.getElementById("receipt-content");
+
+  if (!receiptModal || !receiptContent) {
+    alert("Sale successful! Receipt printed to console.");
+    console.log("Sale Details:", sale);
+    return;
+  }
+
+  const itemsList = sale.items || state.cart;
+  const formattedTotal = (sale.totalAmount || 0).toLocaleString();
+  const method = sale.paymentMethod || "Cash";
+  const receiptDate = new Date().toLocaleString();
+
+  const itemsHtml = itemsList.map((item) => {
+    const itemName = item.name || "Item";
+    const itemLineTotal = (item.price * item.quantity).toLocaleString();
+    return (
+      '<div class="flex justify-between">' +
+        '<span>' + itemName + ' x ' + item.quantity + '</span>' +
+        '<span>₦' + itemLineTotal + '</span>' +
+      '</div>'
+    );
+  }).join("");
+
+  receiptContent.innerHTML =
+    '<div class="text-center pb-4 border-b border-dashed border-gray-300">' +
+      '<h2 class="font-extrabold text-lg uppercase">Boku Supermarket</h2>' +
+      '<p class="text-xs text-gray-500">Abeokuta, Ogun State</p>' +
+      '<p class="text-xs text-gray-400 mt-1">' + receiptDate + '</p>' +
+    '</div>' +
+    '<div class="py-3 border-b border-dashed border-gray-300 space-y-1 text-xs">' +
+      itemsHtml +
+    '</div>' +
+    '<div class="pt-3 text-xs space-y-1">' +
+      '<div class="flex justify-between font-bold text-sm">' +
+        '<span>Total:</span>' +
+        '<span>₦' + formattedTotal + '</span>' +
+      '</div>' +
+      '<div class="flex justify-between text-gray-500">' +
+        '<span>Method:</span>' +
+        '<span>' + method + '</span>' +
+      '</div>' +
+    '</div>';
+
+  receiptModal.classList.remove("hidden");
 }
 
-function closeProductModal() {
-  productModal.classList.add('hidden');
-  productModal.classList.remove('flex');
-}
+// -------------------------------------------------------------
+// App Initialization & Listeners
+// -------------------------------------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+  updateAuthUI();
+  loadProducts();
+
+  const searchInput = document.getElementById("search-input");
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      state.searchQuery = e.target.value;
+      renderProductCatalog();
+    });
+
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const exactMatch = state.products.find(
+          (p) => p.barcode === searchInput.value.trim()
+        );
+        if (exactMatch) {
+          addToCart(exactMatch._id);
+          searchInput.value = "";
+          state.searchQuery = "";
+          renderProductCatalog();
+        }
+      }
+    });
+  }
+
+  const catButtons = document.querySelectorAll("[data-category]");
+  catButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      catButtons.forEach((b) => b.classList.remove("bg-emerald-600", "text-white"));
+      btn.classList.add("bg-emerald-600", "text-white");
+      state.activeCategory = btn.getAttribute("data-category");
+      renderProductCatalog();
+    });
+  });
+
+  const checkoutBtn = document.getElementById("checkout-btn");
+  if (checkoutBtn) {
+    checkoutBtn.addEventListener("click", () => processSale("Cash"));
+  }
+});
