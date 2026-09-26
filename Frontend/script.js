@@ -1,11 +1,11 @@
 /**
  * Boku Supermarket POS & Inventory Management System
- * Production Controller: Stockroom Hub, Profit Margins, Inward Restock, Expiry Tracker
+ * Production Controller: Stockroom Hub, Responsive UI & Sales History Archive
  */
 
 const API_BASE_URL = "https://boku-pos-api.onrender.com";
 
-// Supermarket Catalog with Cost Prices, Minimum Safety Stock & Expiry Dates
+// Supermarket Catalog
 const DEFAULT_PRODUCTS = [
   {
     _id: "p_1",
@@ -164,10 +164,46 @@ try {
   initialUser = null;
 }
 
+// Seed mock history if local storage is empty
 let savedSalesHistory = [];
 try {
   const storedSales = localStorage.getItem("boku_sales_history");
-  savedSalesHistory = storedSales ? JSON.parse(storedSales) : [];
+  if (storedSales) {
+    savedSalesHistory = JSON.parse(storedSales);
+  } else {
+    // Helpful starter transactions for testing reprint
+    savedSalesHistory = [
+      {
+        orderNumber: "BOKU-382914",
+        createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+        cashier: "Cashier",
+        paymentMethod: "Cash",
+        totalAmount: 4050,
+        tenderedAmount: 5000,
+        changeAmount: 950,
+        grossProfit: 850,
+        items: [
+          { name: "Peak Milk Powder (400g)", quantity: 1, price: 3200 },
+          { name: "Indomie Hungry Man Size (180g)", quantity: 1, price: 850 }
+        ]
+      },
+      {
+        orderNumber: "BOKU-719302",
+        createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+        cashier: "Cashier",
+        paymentMethod: "POS / Card",
+        totalAmount: 3900,
+        tenderedAmount: 3900,
+        changeAmount: 0,
+        grossProfit: 830,
+        items: [
+          { name: "Golden Penny Semovita 2kg", quantity: 1, price: 3500 },
+          { name: "Coca-Cola 50cl (Pet)", quantity: 1, price: 400 }
+        ]
+      }
+    ];
+    localStorage.setItem("boku_sales_history", JSON.stringify(savedSalesHistory));
+  }
 } catch (e) {
   savedSalesHistory = [];
 }
@@ -182,6 +218,8 @@ const state = {
   searchQuery: "",
   selectedPaymentMethod: "Cash",
   inventoryActiveTab: "all",
+  historyDateFilter: "all",
+  historySearchQuery: "",
 };
 
 // -------------------------------------------------------------
@@ -275,18 +313,21 @@ function handleLogout() {
 function updateAuthUI() {
   const authScreen = document.getElementById("auth-screen");
   const posScreen = document.getElementById("pos-screen");
-  const userDisplay = document.getElementById("cashier-name");
+  const userDesktop = document.getElementById("cashier-name");
+  const userMobile = document.getElementById("cashier-name-mobile");
+
+  const displayName = state.user?.name || state.user?.fullName || state.user?.email || "Cashier";
 
   if (state.token) {
     if (authScreen) authScreen.classList.add("hidden");
     if (posScreen) posScreen.classList.remove("hidden");
-    if (userDisplay) {
-      userDisplay.textContent = state.user?.name || state.user?.fullName || state.user?.email || "Cashier";
-    }
+    if (userDesktop) userDesktop.textContent = displayName;
+    if (userMobile) userMobile.textContent = displayName;
   } else {
     if (authScreen) authScreen.classList.remove("hidden");
     if (posScreen) posScreen.classList.add("hidden");
-    if (userDisplay) userDisplay.textContent = "Not logged in";
+    if (userDesktop) userDesktop.textContent = "Not logged in";
+    if (userMobile) userMobile.textContent = "Not logged in";
   }
 
   if (typeof lucide !== "undefined" && typeof lucide.createIcons === "function") {
@@ -327,7 +368,7 @@ function switchToRegisterTab() {
 }
 
 // -------------------------------------------------------------
-// Catalog & Inventory Loading
+// Catalog & Inventory
 // -------------------------------------------------------------
 async function loadProducts() {
   try {
@@ -385,32 +426,32 @@ function renderProductCatalog() {
 
       let stockBadge = '<span class="text-[11px] text-slate-400">Stock: ' + prod.quantity + '</span>';
       if (isOutOfStock) {
-        stockBadge = '<span class="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">Out of Stock</span>';
+        stockBadge = '<span class="text-[9px] font-bold text-rose-600 bg-rose-50 px-1 py-0.5 rounded">Out</span>';
       } else if (isLowStock) {
-        stockBadge = '<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">Low: ' + prod.quantity + ' left</span>';
+        stockBadge = '<span class="text-[9px] font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded">Low (' + prod.quantity + ')</span>';
       }
 
       return (
         '<div onclick="' + (isOutOfStock ? "" : "addToCart('" + prod._id + "')") + '" ' +
-        'class="group bg-white rounded-2xl border border-slate-200/80 hover:border-emerald-600 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden p-3.5 shadow-sm ' +
+        'class="group bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 hover:border-emerald-600 hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden p-2.5 sm:p-3.5 shadow-sm ' +
         (isOutOfStock ? "opacity-50 cursor-not-allowed" : "") + '">' +
           '<div>' +
-            '<div class="h-32 w-full bg-slate-100 rounded-xl overflow-hidden mb-3 relative flex items-center justify-center">' +
+            '<div class="h-28 sm:h-32 w-full bg-slate-100 rounded-lg sm:rounded-xl overflow-hidden mb-2.5 relative flex items-center justify-center">' +
               '<img src="' + imgSrc + '" alt="' + prod.name + '" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.src=\'' + FALLBACK_IMAGE + '\'">' +
-              '<span class="absolute top-2 left-2 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/95 backdrop-blur-sm text-slate-800 shadow-sm">' +
+              '<span class="absolute top-1.5 left-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/95 backdrop-blur-sm text-slate-800 shadow-sm">' +
                 categoryLabel +
               '</span>' +
             '</div>' +
-            '<h4 class="font-bold text-slate-800 text-sm leading-snug line-clamp-2 mb-1">' +
+            '<h4 class="font-bold text-slate-800 text-xs sm:text-sm leading-snug line-clamp-2 mb-1">' +
               prod.name +
             '</h4>' +
           '</div>' +
-          '<div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">' +
+          '<div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">' +
             '<div>' +
-              '<span class="text-[#0a3832] font-black text-sm block font-mono">₦' + Number(prod.price).toLocaleString() + '</span>' +
+              '<span class="text-[#0a3832] font-black text-xs sm:text-sm block font-mono">₦' + Number(prod.price).toLocaleString() + '</span>' +
               stockBadge +
             '</div>' +
-            '<button class="px-3 py-1.5 bg-[#0a3832] group-hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm transition" ' +
+            '<button class="px-2.5 sm:px-3 py-1 sm:py-1.5 bg-[#0a3832] group-hover:bg-emerald-700 text-white rounded-md sm:rounded-lg text-[11px] sm:text-xs font-semibold shadow-sm transition" ' +
             (isOutOfStock ? "disabled" : "") + '>' +
               (isOutOfStock ? "Empty" : "Add") +
             '</button>' +
@@ -485,7 +526,8 @@ function clearCart() {
 function calculateCartTotals() {
   const total = state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalCost = state.cart.reduce((sum, item) => sum + item.costPrice * item.quantity, 0);
-  return { subtotal: total, total: total, profit: Math.max(0, total - totalCost) };
+  const count = state.cart.reduce((sum, item) => sum + item.quantity, 0);
+  return { subtotal: total, total: total, profit: Math.max(0, total - totalCost), count: count };
 }
 
 function renderCart() {
@@ -494,12 +536,28 @@ function renderCart() {
   const totalEl = document.getElementById("cart-total");
   const payBtn = document.getElementById("checkout-btn");
 
+  const mobileBar = document.getElementById("mobile-cart-bar");
+  const mobileCount = document.getElementById("mobile-cart-count");
+  const mobileTotal = document.getElementById("mobile-cart-total");
+
   if (!container) return;
+
+  const { total, count } = calculateCartTotals();
+
+  if (mobileBar) {
+    if (state.cart.length > 0) {
+      mobileBar.classList.remove("hidden");
+      if (mobileCount) mobileCount.textContent = count;
+      if (mobileTotal) mobileTotal.textContent = "₦" + total.toLocaleString() + ".00";
+    } else {
+      mobileBar.classList.add("hidden");
+    }
+  }
 
   if (state.cart.length === 0) {
     container.innerHTML =
-      '<div class="h-64 flex flex-col items-center justify-center text-slate-400">' +
-        '<i data-lucide="shopping-bag" class="w-10 h-10 mb-2 stroke-1 text-slate-300"></i>' +
+      '<div class="h-44 sm:h-64 flex flex-col items-center justify-center text-slate-400">' +
+        '<i data-lucide="shopping-bag" class="w-8 h-8 mb-2 stroke-1 text-slate-300"></i>' +
         '<p class="text-xs">Scan or click products to build ticket</p>' +
       '</div>';
     if (typeof lucide !== "undefined") lucide.createIcons();
@@ -513,18 +571,18 @@ function renderCart() {
     .map((item) => {
       const lineTotal = item.price * item.quantity;
       return (
-        '<div class="flex items-center justify-between p-2.5 mb-2 bg-slate-50/80 rounded-xl border border-slate-100 text-xs">' +
-          '<div class="flex-1 pr-2">' +
-            '<p class="font-bold text-slate-800 leading-tight">' + item.name + '</p>' +
-            '<span class="text-[11px] text-slate-500 font-mono">₦' + item.price.toLocaleString() + ' × ' + item.quantity + '</span>' +
+        '<div class="flex items-center justify-between p-2 sm:p-2.5 mb-1.5 sm:mb-2 bg-slate-50 rounded-xl border border-slate-100 text-xs">' +
+          '<div class="flex-1 pr-2 truncate">' +
+            '<p class="font-bold text-slate-800 leading-tight truncate">' + item.name + '</p>' +
+            '<span class="text-[10px] text-slate-500 font-mono">₦' + item.price.toLocaleString() + ' × ' + item.quantity + '</span>' +
           '</div>' +
-          '<div class="flex items-center space-x-1.5">' +
-            '<button onclick="updateCartQuantity(\'' + item._id + '\', -1)" class="w-6 h-6 rounded bg-slate-200 text-slate-700 flex items-center justify-center font-bold hover:bg-slate-300">-</button>' +
-            '<span class="font-bold text-slate-800 w-5 text-center">' + item.quantity + '</span>' +
-            '<button onclick="updateCartQuantity(\'' + item._id + '\', 1)" class="w-6 h-6 rounded bg-slate-200 text-slate-700 flex items-center justify-center font-bold hover:bg-slate-300">+</button>' +
-            '<button onclick="removeFromCart(\'' + item._id + '\')" class="text-rose-500 hover:text-rose-700 ml-1.5 text-base font-bold">×</button>' +
+          '<div class="flex items-center space-x-1 sm:space-x-1.5">' +
+            '<button onclick="updateCartQuantity(\'' + item._id + '\', -1)" class="w-5 h-5 sm:w-6 sm:h-6 rounded bg-slate-200 text-slate-700 flex items-center justify-center font-bold hover:bg-slate-300">-</button>' +
+            '<span class="font-bold text-slate-800 w-4 text-center">' + item.quantity + '</span>' +
+            '<button onclick="updateCartQuantity(\'' + item._id + '\', 1)" class="w-5 h-5 sm:w-6 sm:h-6 rounded bg-slate-200 text-slate-700 flex items-center justify-center font-bold hover:bg-slate-300">+</button>' +
+            '<button onclick="removeFromCart(\'' + item._id + '\')" class="text-rose-500 hover:text-rose-700 ml-1 text-base font-bold">×</button>' +
           '</div>' +
-          '<div class="w-20 text-right font-black text-slate-800 font-mono">' +
+          '<div class="w-16 sm:w-20 text-right font-black text-slate-800 font-mono">' +
             '₦' + lineTotal.toLocaleString() +
           '</div>' +
         '</div>'
@@ -532,10 +590,13 @@ function renderCart() {
     })
     .join("");
 
-  const { total } = calculateCartTotals();
   if (subtotalEl) subtotalEl.textContent = "₦" + total.toLocaleString() + ".00";
   if (totalEl) totalEl.textContent = "₦" + total.toLocaleString() + ".00";
   if (payBtn) payBtn.disabled = false;
+}
+
+function scrollToCartOrCheckout() {
+  openCheckoutModal();
 }
 
 // -------------------------------------------------------------
@@ -574,9 +635,9 @@ function selectPaymentMethod(method) {
     const btn = document.getElementById(buttonIds[m]);
     if (!btn) return;
     if (m === method) {
-      btn.className = "py-2.5 px-3 rounded-xl border border-emerald-600 bg-emerald-50 text-[#0a3832] font-bold text-xs flex flex-col items-center justify-center space-y-1 transition";
+      btn.className = "py-2 px-2.5 rounded-xl border border-emerald-600 bg-emerald-50 text-[#0a3832] font-bold text-xs flex flex-col items-center justify-center space-y-1 transition";
     } else {
-      btn.className = "py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs flex flex-col items-center justify-center space-y-1 hover:border-slate-300 transition";
+      btn.className = "py-2 px-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs flex flex-col items-center justify-center space-y-1 hover:border-slate-300 transition";
     }
   });
 
@@ -598,11 +659,11 @@ function calculateChange() {
   if (changeEl) {
     if (change >= 0) {
       changeEl.textContent = "₦" + change.toLocaleString() + ".00";
-      changeEl.className = "text-lg font-black font-mono text-emerald-700";
+      changeEl.className = "text-base sm:text-lg font-black font-mono text-emerald-700";
       if (confirmBtn) confirmBtn.disabled = false;
     } else {
       changeEl.textContent = "Short by ₦" + Math.abs(change).toLocaleString();
-      changeEl.className = "text-sm font-bold font-mono text-rose-600";
+      changeEl.className = "text-xs sm:text-sm font-bold font-mono text-rose-600";
       if (confirmBtn && state.selectedPaymentMethod === "Cash") {
         confirmBtn.disabled = true;
       }
@@ -633,7 +694,6 @@ async function executeFinalCheckout() {
   const tendered = state.selectedPaymentMethod === "Cash" ? Number(tenderInput?.value || total) : total;
   const change = Math.max(0, tendered - total);
 
-  // Deduct quantities in memory
   state.cart.forEach((cartItem) => {
     const prod = state.products.find((p) => p._id === cartItem._id);
     if (prod) prod.quantity = Math.max(0, prod.quantity - cartItem.quantity);
@@ -687,7 +747,7 @@ async function executeFinalCheckout() {
 function recordSaleLocally(sale) {
   state.salesHistory.unshift(sale);
   try {
-    localStorage.setItem("boku_sales_history", JSON.stringify(state.salesHistory.slice(0, 50)));
+    localStorage.setItem("boku_sales_history", JSON.stringify(state.salesHistory.slice(0, 100)));
   } catch (e) {}
 }
 
@@ -758,6 +818,133 @@ function displayReceipt(sale) {
 }
 
 // -------------------------------------------------------------
+// SALES & RECEIPT HISTORY ARCHIVE LOGIC
+// -------------------------------------------------------------
+function openHistoryModal() {
+  state.historyDateFilter = "all";
+  state.historySearchQuery = "";
+  const searchInput = document.getElementById("history-search-input");
+  if (searchInput) searchInput.value = "";
+
+  renderHistoryTable();
+  document.getElementById("history-modal").classList.remove("hidden");
+}
+
+function filterHistoryDate(filterMode) {
+  state.historyDateFilter = filterMode;
+
+  const filters = ["all", "today", "yesterday", "week"];
+  filters.forEach((f) => {
+    const btn = document.getElementById("hist-filter-" + f);
+    if (!btn) return;
+    if (f === filterMode) {
+      btn.className = "whitespace-nowrap px-3 py-1.5 rounded-lg bg-[#0a3832] text-white font-semibold";
+    } else {
+      btn.className = "whitespace-nowrap px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-semibold";
+    }
+  });
+
+  renderHistoryTable();
+}
+
+function handleHistorySearch(query) {
+  state.historySearchQuery = query.toLowerCase().trim();
+  renderHistoryTable();
+}
+
+function renderHistoryTable() {
+  const tbody = document.getElementById("history-table-body");
+  const countLabel = document.getElementById("history-count-label");
+  if (!tbody) return;
+
+  const now = new Date();
+  const todayStr = now.toDateString();
+  const yesterday = new Date(Date.now() - 86400000);
+  const yesterdayStr = yesterday.toDateString();
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
+
+  // Filter by date
+  let filtered = state.salesHistory.filter((s) => {
+    const saleDate = new Date(s.createdAt);
+
+    if (state.historyDateFilter === "today") {
+      return saleDate.toDateString() === todayStr;
+    } else if (state.historyDateFilter === "yesterday") {
+      return saleDate.toDateString() === yesterdayStr;
+    } else if (state.historyDateFilter === "week") {
+      return saleDate >= sevenDaysAgo;
+    }
+    return true;
+  });
+
+  // Filter by search query (Receipt ref, cashier, or items)
+  if (state.historySearchQuery) {
+    filtered = filtered.filter((s) => {
+      const orderMatch = (s.orderNumber || "").toLowerCase().includes(state.historySearchQuery);
+      const cashierMatch = (s.cashier || "").toLowerCase().includes(state.historySearchQuery);
+      const itemMatch = (s.items || []).some((i) => (i.name || "").toLowerCase().includes(state.historySearchQuery));
+      return orderMatch || cashierMatch || itemMatch;
+    });
+  }
+
+  if (countLabel) {
+    countLabel.textContent = `Showing ${filtered.length} of ${state.salesHistory.length} total receipts`;
+  }
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-slate-400">No past transactions match your search filter.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered
+    .map((s) => {
+      const dateObj = new Date(s.createdAt || Date.now());
+      const formattedDate = dateObj.toLocaleDateString([], { month: "short", day: "numeric" });
+      const formattedTime = dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+      const totalItemsCount = (s.items || []).reduce((acc, i) => acc + (i.quantity || 1), 0);
+      const firstItemName = s.items && s.items[0] ? s.items[0].name : "General Sale";
+      const extraItems = (s.items || []).length > 1 ? ` +${s.items.length - 1} more` : "";
+      const itemSummary = `<span class="truncate max-w-[180px] inline-block font-medium">${firstItemName}</span><span class="text-slate-400 text-[10px]">${extraItems} (${totalItemsCount} units)</span>`;
+
+      return `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="p-2.5 font-mono font-bold text-emerald-800">${s.orderNumber || "BOKU-000000"}</td>
+          <td class="p-2.5 text-slate-600">
+            <div>${formattedDate}</div>
+            <div class="text-[10px] text-slate-400 font-mono">${formattedTime}</div>
+          </td>
+          <td class="p-2.5 font-medium text-slate-700">${s.cashier || "Cashier"}</td>
+          <td class="p-2.5">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">${s.paymentMethod || "Cash"}</span>
+          </td>
+          <td class="p-2.5 text-slate-700">${itemSummary}</td>
+          <td class="p-2.5 text-right font-black font-mono text-emerald-800">₦${Number(s.totalAmount || 0).toLocaleString()}</td>
+          <td class="p-2.5 text-center">
+            <button onclick="reprintHistoricalReceipt('${s.orderNumber}')" class="px-2.5 py-1 bg-[#0a3832] hover:bg-emerald-700 text-white rounded-lg font-bold text-[10px] shadow-sm transition flex items-center justify-center space-x-1 mx-auto">
+              <i data-lucide="printer" class="w-3 h-3"></i>
+              <span>Reprint</span>
+            </button>
+          </td>
+        </tr>`;
+    })
+    .join("");
+
+  if (typeof lucide !== "undefined" && typeof lucide.createIcons === "function") {
+    lucide.createIcons();
+  }
+}
+
+function reprintHistoricalReceipt(orderNumber) {
+  const sale = state.salesHistory.find((s) => s.orderNumber === orderNumber);
+  if (!sale) {
+    alert("Receipt reference not found in archive.");
+    return;
+  }
+  displayReceipt(sale);
+}
+
+// -------------------------------------------------------------
 // Daily Sales History & Gross Profit Ledger
 // -------------------------------------------------------------
 async function loadSalesHistory() {
@@ -765,7 +952,7 @@ async function loadSalesHistory() {
     const data = await apiRequest("/sales");
     if (Array.isArray(data) && data.length > 0) {
       state.salesHistory = data;
-      localStorage.setItem("boku_sales_history", JSON.stringify(data.slice(0, 50)));
+      localStorage.setItem("boku_sales_history", JSON.stringify(data.slice(0, 100)));
     }
   } catch (err) {}
 }
@@ -817,7 +1004,7 @@ function openSalesLedgerModal() {
 }
 
 // -------------------------------------------------------------
-// INVENTORY STOCKROOM & VALUATION HUB
+// INVENTORY STOCKROOM HUB
 // -------------------------------------------------------------
 function openInventoryModal() {
   renderInventoryTable("all");
@@ -833,19 +1020,17 @@ function renderInventoryTable(filterMode = "all") {
   const lowCountEl = document.getElementById("inv-low-count");
   const tbody = document.getElementById("inventory-table-body");
 
-  // Tab Styling
   const tabs = ["all", "low", "expiry"];
   tabs.forEach((t) => {
     const btn = document.getElementById("inv-tab-" + t);
     if (!btn) return;
     if (t === filterMode) {
-      btn.className = "px-3 py-1.5 rounded-lg bg-[#0a3832] text-white font-semibold transition";
+      btn.className = "whitespace-nowrap px-3 py-1.5 rounded-lg bg-[#0a3832] text-white font-semibold transition";
     } else {
-      btn.className = "px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-semibold transition";
+      btn.className = "whitespace-nowrap px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-semibold transition";
     }
   });
 
-  // KPI Calculations
   let totalCostValuation = 0;
   let totalRetailValuation = 0;
   let lowStockCount = 0;
@@ -874,7 +1059,6 @@ function renderInventoryTable(filterMode = "all") {
   if (profitEl) profitEl.textContent = "₦" + Math.round(totalPotentialProfit).toLocaleString();
   if (lowCountEl) lowCountEl.textContent = lowStockCount + " Items";
 
-  // Filter Table Items
   let filteredItems = [...state.products];
   if (filterMode === "low") {
     filteredItems = state.products.filter((p) => (p.quantity || 0) <= (p.minStock || 10));
@@ -901,39 +1085,38 @@ function renderInventoryTable(filterMode = "all") {
       const price = Number(prod.price);
       const margin = Math.round(((price - cost) / price) * 100);
 
-      // Expiry status
       let expiryBadge = '<span class="text-slate-500 font-mono text-[11px]">' + (prod.expiryDate || "N/A") + '</span>';
       if (prod.expiryDate) {
         const exp = new Date(prod.expiryDate);
         if (exp < now) {
-          expiryBadge = '<span class="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded">EXPIRED</span>';
+          expiryBadge = '<span class="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">EXPIRED</span>';
         } else if (exp <= ninetyDaysFromNow) {
-          expiryBadge = '<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">' + prod.expiryDate + ' (Soon)</span>';
+          expiryBadge = '<span class="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">' + prod.expiryDate + '</span>';
         }
       }
 
-      let stockPill = '<span class="font-bold text-slate-700 font-mono">' + prod.quantity + ' units</span>';
+      let stockPill = '<span class="font-bold text-slate-700 font-mono">' + prod.quantity + '</span>';
       if (isOut) {
-        stockPill = '<span class="px-2 py-0.5 bg-rose-100 text-rose-700 font-bold rounded text-[10px]">Empty (0)</span>';
+        stockPill = '<span class="px-1.5 py-0.5 bg-rose-100 text-rose-700 font-bold rounded text-[9px]">0</span>';
       } else if (isLow) {
-        stockPill = '<span class="px-2 py-0.5 bg-amber-100 text-amber-800 font-bold rounded text-[10px]">Low (' + prod.quantity + ')</span>';
+        stockPill = '<span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 font-bold rounded text-[9px]">Low (' + prod.quantity + ')</span>';
       }
 
       return `
         <tr class="hover:bg-slate-50 transition">
           <td class="p-2.5">
             <div class="font-bold text-slate-800">${prod.name}</div>
-            <span class="text-[10px] text-slate-400 uppercase">${prod.category || "General"}</span>
+            <span class="text-[9px] text-slate-400 uppercase">${prod.category || "General"}</span>
           </td>
           <td class="p-2.5">${stockPill}</td>
           <td class="p-2.5 font-mono text-slate-600">₦${cost.toLocaleString()}</td>
           <td class="p-2.5 font-mono font-bold text-emerald-800">₦${price.toLocaleString()}</td>
           <td class="p-2.5">
-            <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold rounded text-[10px]">+${margin}%</span>
+            <span class="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 font-bold rounded text-[9px]">+${margin}%</span>
           </td>
           <td class="p-2.5">${expiryBadge}</td>
           <td class="p-2.5 text-right">
-            <button onclick="openRestockModal('${prod._id}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] shadow-sm transition">
+            <button onclick="openRestockModal('${prod._id}')" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-[10px] shadow-sm transition">
               + Restock
             </button>
           </td>
@@ -952,7 +1135,7 @@ function filterInventoryTable(query) {
 }
 
 // -------------------------------------------------------------
-// INWARD RESTOCK HANDLERS
+// Inward Restock
 // -------------------------------------------------------------
 function openRestockModal(productId) {
   const prod = state.products.find((p) => p._id === productId);
@@ -988,40 +1171,6 @@ async function handleExecuteRestock(e) {
   renderProductCatalog();
   renderInventoryTable(state.inventoryActiveTab);
 }
-
-// -------------------------------------------------------------
-// Barcode Scanner Listener
-// -------------------------------------------------------------
-let barcodeBuffer = "";
-let barcodeTimestamp = 0;
-
-window.addEventListener("keydown", (e) => {
-  if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) {
-    return;
-  }
-
-  const now = Date.now();
-  if (now - barcodeTimestamp > 250) {
-    barcodeBuffer = "";
-  }
-  barcodeTimestamp = now;
-
-  if (e.key === "Enter") {
-    if (barcodeBuffer.length >= 3) {
-      const matched = state.products.find(
-        (p) => (p.barcode && p.barcode === barcodeBuffer) || p.name.toLowerCase().includes(barcodeBuffer.toLowerCase())
-      );
-      if (matched) {
-        addToCart(matched._id);
-        const searchInput = document.getElementById("search-input");
-        if (searchInput) searchInput.value = "";
-      }
-      barcodeBuffer = "";
-    }
-  } else if (e.key.length === 1) {
-    barcodeBuffer += e.key;
-  }
-});
 
 // -------------------------------------------------------------
 // Quick Add Product Form Handler
@@ -1179,7 +1328,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// Window Bindings for Inline HTML handlers
+// Window Bindings
 window.handleLogin = handleLogin;
 window.handleRegister = handleRegister;
 window.handleLogout = handleLogout;
@@ -1203,3 +1352,8 @@ window.filterInventoryTable = filterInventoryTable;
 window.openRestockModal = openRestockModal;
 window.handleExecuteRestock = handleExecuteRestock;
 window.handleQuickCreateProduct = handleQuickCreateProduct;
+window.scrollToCartOrCheckout = scrollToCartOrCheckout;
+window.openHistoryModal = openHistoryModal;
+window.filterHistoryDate = filterHistoryDate;
+window.handleHistorySearch = handleHistorySearch;
+window.reprintHistoricalReceipt = reprintHistoricalReceipt;
